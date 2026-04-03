@@ -19,8 +19,8 @@ export function getJoinUrl(roomCode) {
 
 export function getSettings() {
   return {
-    ablyKey: localStorage.getItem('ably_key') || '',
-    geminiKey: localStorage.getItem('gemini_key') || '',
+    ablyKey: import.meta.env.VITE_ABLY_API_KEY || localStorage.getItem('ably_key') || '',
+    geminiKey: import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('gemini_key') || '',
   };
 }
 

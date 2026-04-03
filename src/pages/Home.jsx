@@ -46,6 +46,9 @@ export default function Home() {
   const [geminiKey, setGeminiKey] = useState(s.geminiKey);
   const [saved, setSaved] = useState(false);
 
+  const envAblyKey = import.meta.env.VITE_ABLY_API_KEY;
+  const envGeminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
   function handleHost(gameId) {
     if (!ablyKey) { setShowSettings(true); return; }
     navigate(`/host/${gameId}`);
@@ -77,16 +80,21 @@ export default function Home() {
         {showSettings && (
           <div className="card animate-fade-in" style={{ marginBottom: 32, borderColor: 'var(--border2)' }}>
             <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 16 }}>API Keys</h3>
+            {(envAblyKey || envGeminiKey) && (
+              <div style={{ fontSize: 12, color: 'var(--purple-light)', marginBottom: 16, background: 'rgba(168, 85, 247, 0.1)', padding: '8px 12px', borderRadius: 8 }}>
+                ✨ System keys are active. You can still override them below if needed.
+              </div>
+            )}
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 13, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>
-                  Ably API Key <span style={{ color: 'var(--red)' }}>*</span>
+                  Ably API Key {!envAblyKey && <span style={{ color: 'var(--red)' }}>*</span>}
                   <span style={{ marginLeft: 8, fontSize: 11 }}>
                     — <a href="https://ably.com" target="_blank" rel="noreferrer" style={{ color: 'var(--purple-light)' }}>Get free key at ably.com</a>
                   </span>
                 </label>
                 <input
-                  type="password" placeholder="xxxxx.xxxxxx:xxxxxxxxxxxxxxxx"
+                  type="password" placeholder={envAblyKey ? "System Key Active" : "xxxxx.xxxxxx:xxxxxxxxxxxxxxxx"}
                   value={ablyKey} onChange={e => setAblyKey(e.target.value)}
                 />
               </div>
@@ -95,7 +103,7 @@ export default function Home() {
                   Gemini API Key <span style={{ color: 'var(--muted)', fontSize: 11 }}>(required for Quiz game)</span>
                 </label>
                 <input
-                  type="password" placeholder="AIza..."
+                  type="password" placeholder={envGeminiKey ? "System Key Active" : "AIza..."}
                   value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
                 />
               </div>
