@@ -74,7 +74,7 @@ export default function HostLobby() {
       unsubPresenceFunc();
       unsubFunc();
     };
-  }, [ablyKey, envAblyKey, game, roomCode, navigate, joinUrl, playerId]);
+  }, [ablyKey, game, roomCode, navigate, joinUrl, playerId]);
 
   function startGame() {
     if (players.length === 0) return;
@@ -95,7 +95,18 @@ export default function HostLobby() {
     quiz:    { name: 'Blitz Quiz',     color: '#f59e0b', emoji: '🧠', min: 2 },
     scribble:{ name: 'Scribble Rush',  color: '#10b981', emoji: '🎨', min: 3 },
   };
-  const meta = GAME_META[game] || {};
+  const meta = GAME_META[game];
+
+  if (!meta) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <h2>Invalid Game</h2>
+        <button className="btn btn-primary" onClick={() => navigate('/')} style={{ marginTop: 20 }}>
+          Back to Home
+        </button>
+      </div>
+    );
+  }
 
   if (phase === 'playing') {
     const props = { channel: channelRef.current, players, roomCode, onEnd: endGame };
