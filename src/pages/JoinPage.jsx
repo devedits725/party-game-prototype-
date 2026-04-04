@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getAblyClient, getRoomChannel, subscribeAll, enterPresence, updatePresence } from '../lib/ably.js'
+import { getAblyClient, getRoomChannel, subscribeAll, enterPresence } from '../lib/ably.js'
 import { getSettings, getOrCreatePlayerId } from '../lib/utils.js'
 import FighterController from '../games/fighter/FighterController.jsx'
 import QuizController from '../games/quiz/QuizController.jsx'
@@ -17,10 +17,10 @@ export default function JoinPage() {
   const [myIndex, setMyIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const channelRef = useRef(null);
+
+  const [activeChannel, setActiveChannel] = useState(null);
   const { ablyKey } = getSettings();
   const playerId = getOrCreatePlayerId();
-
   const envAblyKey = import.meta.env.VITE_ABLY_API_KEY;
 
   // If code in URL, skip to name entry
@@ -28,12 +28,12 @@ export default function JoinPage() {
     if (code) setStep('enter-name');
   }, [code]);
 
-  // Handle subscriptions in a separate effect
+  // Handle subscriptions and presence
   useEffect(() => {
-    if (step !== 'lobby' && step !== 'playing') return;
-    if (!channelRef.current) return;
+    if (!activeChannel) return;
 
-    const channel = channelRef.current;
+    const channel = activeChannel;
+
     const unsub = subscribeAll(channel, (type, data) => {
       if (type === 'room:info' || type === 'room:start') {
         setGame(data.game);
@@ -49,11 +49,17 @@ export default function JoinPage() {
       }
     });
 
+    // Enter presence
+    enterPresence(channel, { role: 'player', name: name.trim() })
+      .catch(err => console.error("Presence enter error:", err));
+
     return () => {
       unsub();
+      // Only leave presence if we are NOT in playing state (or if unmounting completely)
+      // Actually, standard behavior is to leave when leaving the room.
       channel.presence.leave();
     };
-  }, [step, playerId]);
+  }, [activeChannel, playerId, name]);
 
   function handleCodeSubmit(e) {
     e.preventDefault();
@@ -63,17 +69,22 @@ export default function JoinPage() {
   async function handleJoin(e) {
     e.preventDefault();
     const effectiveAblyKey = ablyKey || envAblyKey;
-    if (!name.trim() || !effectiveAblyKey) return;
+    if (!name.trim() || !effectiveAblyKey) {
+      setError("Missing API key or name");
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const client = getAblyClient(effectiveAblyKey);
+      const client = getAblyClient(effectiveAblyKey, playerId);
       const channel = getRoomChannel(client, roomCode);
-      channelRef.current = channel;
 
-      await enterPresence(channel, { role: 'player', name: name.trim() });
+      // Test connection/channel access
+      await channel.attach();
+
+      setActiveChannel(channel);
 
       // Ask host for room info
       channel.publish('player:request-info', { playerId });
@@ -81,7 +92,7 @@ export default function JoinPage() {
       setStep('lobby');
     } catch (err) {
       console.error('Join error:', err);
-      setError('Failed to join room. Please check the code and your connection.');
+      setError(`Failed to join room: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -93,8 +104,8 @@ export default function JoinPage() {
     scribble:{ name: 'Scribble Rush',  emoji: '🎨', color: '#10b981' },
   };
 
-  if (step === 'playing' && channelRef.current) {
-    const props = { channel: channelRef.current, playerId, playerIndex: myIndex, players, name };
+  if (step === 'playing' && activeChannel) {
+    const props = { channel: activeChannel, playerId, playerIndex: myIndex, players, name };
     if (game === 'fighter') return <FighterController {...props} />;
     if (game === 'quiz')    return <QuizController    {...props} />;
     if (game === 'scribble')return <ScribbleController {...props} />;

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getAblyClient, getRoomChannel, subscribeAll, enterPresence, subscribePresence, getPresenceMembers } from '../lib/ably.js'
-import { getSettings, generateRoomCode, getJoinUrl, PLAYER_COLORS } from '../lib/utils.js'
+import { getSettings, generateRoomCode, getJoinUrl, PLAYER_COLORS, getOrCreatePlayerId } from '../lib/utils.js'
 import FighterHost from '../games/fighter/FighterHost.jsx'
 import QuizHost from '../games/quiz/QuizHost.jsx'
 import ScribbleHost from '../games/scribble/ScribbleHost.jsx'
@@ -18,9 +18,12 @@ export default function HostLobby() {
   const channelRef = useRef(null);
   const joinUrl = getJoinUrl(roomCode);
   const { ablyKey } = getSettings();
+  const envAblyKey = import.meta.env.VITE_ABLY_API_KEY;
+  const playerId = getOrCreatePlayerId();
 
   useEffect(() => {
-    if (!ablyKey) { navigate('/'); return; }
+    const effectiveAblyKey = ablyKey || envAblyKey;
+    if (!effectiveAblyKey) { navigate('/'); return; }
 
     QRCode.toDataURL(joinUrl, { width: 200, margin: 1, color: { dark: '#f1f5f9', light: '#0f0f2d' } })
       .then(setQrUrl);
@@ -30,10 +33,11 @@ export default function HostLobby() {
 
     const setupAbly = async () => {
       try {
-        const client = getAblyClient(ablyKey);
+        const client = getAblyClient(effectiveAblyKey, playerId);
         const channel = getRoomChannel(client, roomCode);
         channelRef.current = channel;
 
+        await channel.attach();
         await enterPresence(channel, { role: 'host', game });
 
         const refreshPlayers = async () => {
@@ -60,7 +64,7 @@ export default function HostLobby() {
         unsubFunc = unsub;
       } catch (err) {
         console.error('Ably setup error:', err);
-        setError('Failed to connect to game server. Please check your API key.');
+        setError(`Failed to connect to game server: ${err.message || 'Unknown error'}`);
       }
     };
 
@@ -71,7 +75,7 @@ export default function HostLobby() {
       unsubPresenceFunc();
       unsubFunc();
     };
-  }, [ablyKey, game, roomCode, navigate, joinUrl]);
+  }, [ablyKey, envAblyKey, game, roomCode, navigate, joinUrl, playerId]);
 
   function startGame() {
     if (players.length === 0) return;

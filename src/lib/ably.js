@@ -1,10 +1,19 @@
 import Ably from 'ably';
 
 let client = null;
+let lastKey = null;
+let lastClientId = null;
 
-export function getAblyClient(apiKey) {
-  if (client) return client;
-  client = new Ably.Realtime({ key: apiKey, echoMessages: false });
+export function getAblyClient(apiKey, clientId) {
+  if (client && lastKey === apiKey && lastClientId === clientId) return client;
+
+  if (client) {
+    client.close();
+  }
+
+  lastKey = apiKey;
+  lastClientId = clientId;
+  client = new Ably.Realtime({ key: apiKey, clientId, echoMessages: false });
   return client;
 }
 
@@ -44,5 +53,5 @@ export function subscribeAll(channel, callback) {
 }
 
 export function disconnectAbly() {
-  if (client) { client.close(); client = null; }
+  if (client) { client.close(); client = null; lastKey = null; lastClientId = null; }
 }
