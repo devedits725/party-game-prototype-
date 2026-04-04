@@ -18,23 +18,40 @@ export function getJoinUrl(roomCode) {
 }
 
 export function getSettings() {
-  return {
-    systemAblyKey: import.meta.env.VITE_ABLY_API_KEY || '',
-    systemGeminiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
-    userAblyKey: localStorage.getItem('ably_key') || '',
-    userGeminiKey: localStorage.getItem('gemini_key') || '',
-  };
+  try {
+    return {
+      systemAblyKey: import.meta.env.VITE_ABLY_API_KEY || '',
+      systemGeminiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
+      userAblyKey: localStorage.getItem('ably_key') || '',
+      userGeminiKey: localStorage.getItem('gemini_key') || '',
+    };
+  } catch (e) {
+    return {
+      systemAblyKey: import.meta.env.VITE_ABLY_API_KEY || '',
+      systemGeminiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
+      userAblyKey: '',
+      userGeminiKey: '',
+    };
+  }
 }
 
 export function saveSettings(ablyKey, geminiKey) {
-  localStorage.setItem('ably_key', ablyKey);
-  localStorage.setItem('gemini_key', geminiKey);
+  try {
+    localStorage.setItem('ably_key', ablyKey);
+    localStorage.setItem('gemini_key', geminiKey);
+  } catch (e) {
+    console.error('Failed to save settings to localStorage:', e);
+  }
 }
 
 export function getOrCreatePlayerId() {
-  let id = sessionStorage.getItem('player_id');
-  if (!id) { id = generatePlayerId(); sessionStorage.setItem('player_id', id); }
-  return id;
+  try {
+    let id = sessionStorage.getItem('player_id');
+    if (!id) { id = generatePlayerId(); sessionStorage.setItem('player_id', id); }
+    return id;
+  } catch (e) {
+    return generatePlayerId();
+  }
 }
 
 export const SCRIBBLE_WORDS = [
