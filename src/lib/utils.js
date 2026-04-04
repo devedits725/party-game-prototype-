@@ -20,7 +20,7 @@ export function getJoinUrl(roomCode) {
 export function getSettings() {
   try {
     // HARDCODED ABLY KEY PLACEHOLDER - REPLACE THE STRING BELOW
-    const sAbly = 'REPLACE_WITH_YOUR_ABLY_API_KEY';
+    const sAbly = 'fp0xag.eFWpYA:BB0NoPNj6jOA-7Y4kcd_PYxupecmRzJYfROkvZdpm5s';
 
     const sGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
     const uAbly = (localStorage.getItem('ably_key') || '').trim();
