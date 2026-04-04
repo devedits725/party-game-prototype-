@@ -19,9 +19,9 @@ export default function JoinPage() {
   const [error, setError] = useState(null);
 
   const [activeChannel, setActiveChannel] = useState(null);
-  const { ablyKey } = getSettings();
+  const s = getSettings();
+  const ablyKey = s.userAblyKey || s.systemAblyKey;
   const playerId = getOrCreatePlayerId();
-  const envAblyKey = import.meta.env.VITE_ABLY_API_KEY;
 
   // If code in URL, skip to name entry
   useEffect(() => {
@@ -68,8 +68,7 @@ export default function JoinPage() {
 
   async function handleJoin(e) {
     e.preventDefault();
-    const effectiveAblyKey = ablyKey || envAblyKey;
-    if (!name.trim() || !effectiveAblyKey) {
+    if (!name.trim() || !ablyKey) {
       setError("Missing API key or name");
       return;
     }
@@ -78,7 +77,7 @@ export default function JoinPage() {
     setError(null);
 
     try {
-      const client = getAblyClient(effectiveAblyKey, playerId);
+      const client = getAblyClient(ablyKey, playerId);
       const channel = getRoomChannel(client, roomCode);
 
       // Test connection/channel access
@@ -87,11 +86,11 @@ export default function JoinPage() {
       setActiveChannel(channel);
 
       // Ask host for room info
-      channel.publish('player:request-info', { playerId });
+      await channel.publish('player:request-info', { playerId });
 
       setStep('lobby');
     } catch (err) {
-      console.error('Join error:', err);
+      console.error('Join error detail:', err);
       setError(`Failed to join room: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
@@ -140,7 +139,7 @@ export default function JoinPage() {
           <div className="animate-fade-in">
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, marginBottom: 8, textAlign: 'center' }}>What's your name?</h1>
             <p style={{ color: 'var(--muted)', textAlign: 'center', marginBottom: 32 }}>Room: <strong>{roomCode}</strong></p>
-            {!ablyKey && !envAblyKey && (
+            {!ablyKey && (
               <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: '#ef4444' }}>
                 ⚠️ No Ably API key found. Ask the host to set their key first, then share the join link.
               </div>

@@ -42,12 +42,12 @@ export default function Home() {
   const navigate = useNavigate();
   const [showSettings, setShowSettings] = useState(false);
   const s = getSettings();
-  const [ablyKey, setAblyKey] = useState(s.ablyKey);
-  const [geminiKey, setGeminiKey] = useState(s.geminiKey);
+  const [ablyKey, setAblyKey] = useState(s.userAblyKey);
+  const [geminiKey, setGeminiKey] = useState(s.userGeminiKey);
   const [saved, setSaved] = useState(false);
 
-  const envAblyKey = import.meta.env.VITE_ABLY_API_KEY;
-  const envGeminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const envAblyKey = s.systemAblyKey;
+  const envGeminiKey = s.systemGeminiKey;
 
   const hasAbly = !!(ablyKey || envAblyKey);
   const hasGemini = !!(geminiKey || envGeminiKey);
@@ -97,8 +97,10 @@ export default function Home() {
                   </span>
                 </label>
                 <input
-                  type="password" placeholder={envAblyKey ? "System Key Active" : "xxxxx.xxxxxx:xxxxxxxxxxxxxxxx"}
-                  value={ablyKey} onChange={e => setAblyKey(e.target.value)}
+                  type="password"
+                  placeholder={envAblyKey ? "System Managed Key Active" : "xxxxx.xxxxxx:xxxxxxxxxxxxxxxx"}
+                  value={ablyKey}
+                  onChange={e => setAblyKey(e.target.value)}
                 />
               </div>
               <div>
@@ -106,8 +108,10 @@ export default function Home() {
                   Gemini API Key <span style={{ color: 'var(--muted)', fontSize: 11 }}>(required for Quiz game)</span>
                 </label>
                 <input
-                  type="password" placeholder={envGeminiKey ? "System Key Active" : "AIza..."}
-                  value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
+                  type="password"
+                  placeholder={envGeminiKey ? "System Managed Key Active" : "AIza..."}
+                  value={geminiKey}
+                  onChange={e => setGeminiKey(e.target.value)}
                 />
               </div>
               <button className="btn btn-primary" onClick={handleSave} style={{ width: 'fit-content' }}>
