@@ -9,12 +9,12 @@
     "preview": "vite preview --host"
   },
   "dependencies": {
-    "ably": "^2.4.0",
     "phaser": "^3.80.1",
+    "qrcode": "^1.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.0",
-    "qrcode": "^1.5.3"
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
