@@ -63,7 +63,11 @@ export default function HostLobby() {
         unsubFunc = unsub;
       } catch (err) {
         console.error('Ably setup error:', err);
-        setError(`Failed to connect to game server: ${err.message || 'Unknown error'}`);
+        let msg = err.message || 'Unknown error';
+        if (msg.includes('401')) {
+          msg = 'Invalid API Key. Please check your Ably settings.';
+        }
+        setError(`Failed to connect to game server: ${msg}`);
       }
     };
 

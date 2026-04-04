@@ -11,6 +11,10 @@ export function getAblyClient(apiKey, clientId) {
     client.close();
   }
 
+  if (apiKey && (!apiKey.includes(':') || !apiKey.includes('.'))) {
+    throw new Error('Malformed Ably API key. It should look like "appId.keyId:secret".');
+  }
+
   lastKey = apiKey;
   lastClientId = clientId;
   client = new Ably.Realtime({ key: apiKey, clientId, echoMessages: false });

@@ -19,16 +19,22 @@ export function getJoinUrl(roomCode) {
 
 export function getSettings() {
   try {
+    const sAbly = import.meta.env.VITE_ABLY_API_KEY || '';
+    const sGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
+    const uAbly = localStorage.getItem('ably_key') || '';
+    const uGemini = localStorage.getItem('gemini_key') || '';
     return {
-      systemAblyKey: import.meta.env.VITE_ABLY_API_KEY || '',
-      systemGeminiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
-      userAblyKey: localStorage.getItem('ably_key') || '',
-      userGeminiKey: localStorage.getItem('gemini_key') || '',
+      systemAblyKey: sAbly.trim(),
+      systemGeminiKey: sGemini.trim(),
+      userAblyKey: uAbly.trim(),
+      userGeminiKey: uGemini.trim(),
     };
   } catch (e) {
+    const sAbly = import.meta.env.VITE_ABLY_API_KEY || '';
+    const sGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
     return {
-      systemAblyKey: import.meta.env.VITE_ABLY_API_KEY || '',
-      systemGeminiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
+      systemAblyKey: sAbly.trim(),
+      systemGeminiKey: sGemini.trim(),
       userAblyKey: '',
       userGeminiKey: '',
     };
