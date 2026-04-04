@@ -19,24 +19,30 @@ export function getJoinUrl(roomCode) {
 
 export function getSettings() {
   try {
-    const sAbly = import.meta.env.VITE_ABLY_API_KEY || '';
+    // HARDCODED ABLY KEY PLACEHOLDER - REPLACE THE STRING BELOW
+    const sAbly = 'REPLACE_WITH_YOUR_ABLY_API_KEY';
+
     const sGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
-    const uAbly = localStorage.getItem('ably_key') || '';
-    const uGemini = localStorage.getItem('gemini_key') || '';
+    const uAbly = (localStorage.getItem('ably_key') || '').trim();
+    const uGemini = (localStorage.getItem('gemini_key') || '').trim();
     return {
       systemAblyKey: sAbly.trim(),
       systemGeminiKey: sGemini.trim(),
-      userAblyKey: uAbly.trim(),
-      userGeminiKey: uGemini.trim(),
+      userAblyKey: uAbly,
+      userGeminiKey: uGemini,
+      ablyKey: uAbly || sAbly.trim(),
+      geminiKey: uGemini || sGemini.trim(),
     };
   } catch (e) {
-    const sAbly = import.meta.env.VITE_ABLY_API_KEY || '';
-    const sGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
+    const sAbly = 'REPLACE_WITH_YOUR_ABLY_API_KEY';
+    const sGemini = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
     return {
       systemAblyKey: sAbly.trim(),
-      systemGeminiKey: sGemini.trim(),
+      systemGeminiKey: sGemini,
       userAblyKey: '',
       userGeminiKey: '',
+      ablyKey: sAbly.trim(),
+      geminiKey: sGemini,
     };
   }
 }

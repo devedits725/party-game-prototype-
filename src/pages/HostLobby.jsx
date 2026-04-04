@@ -29,17 +29,22 @@ export default function HostLobby() {
 
     let unsubFunc = () => {};
     let unsubPresenceFunc = () => {};
+    let mounted = true;
 
     const setupAbly = async () => {
       try {
         const client = getAblyClient(ablyKey, playerId);
         const channel = getRoomChannel(client, roomCode);
+        if (!mounted) return;
         channelRef.current = channel;
 
         await channel.attach();
+        if (!mounted) return;
         await enterPresence(channel, { role: 'host', game });
+        if (!mounted) { channel.presence.leave(); return; }
 
         const refreshPlayers = async () => {
+          if (!mounted) return;
           const members = await getPresenceMembers(channel);
           const ps = members
             .filter(m => m.data?.role === 'player')
@@ -49,7 +54,7 @@ export default function HostLobby() {
               color: PLAYER_COLORS[i % PLAYER_COLORS.length],
               index: i,
             }));
-          setPlayers(ps);
+          if (mounted) setPlayers(ps);
         };
 
         unsubPresenceFunc = subscribePresence(channel, refreshPlayers);
@@ -74,6 +79,7 @@ export default function HostLobby() {
     setupAbly();
 
     return () => {
+      mounted = false;
       if (channelRef.current) channelRef.current.presence.leave();
       unsubPresenceFunc();
       unsubFunc();
