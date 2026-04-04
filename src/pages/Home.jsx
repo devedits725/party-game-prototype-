@@ -49,8 +49,11 @@ export default function Home() {
   const envAblyKey = import.meta.env.VITE_ABLY_API_KEY;
   const envGeminiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
+  const hasAbly = !!(ablyKey || envAblyKey);
+  const hasGemini = !!(geminiKey || envGeminiKey);
+
   function handleHost(gameId) {
-    if (!ablyKey) { setShowSettings(true); return; }
+    if (!hasAbly) { setShowSettings(true); return; }
     navigate(`/host/${gameId}`);
   }
 
@@ -162,10 +165,15 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <button
                   className="btn btn-lg"
-                  style={{ background: game.color, color: 'white', whiteSpace: 'nowrap' }}
+                  style={{
+                    background: game.color,
+                    color: 'white',
+                    whiteSpace: 'nowrap',
+                    opacity: (game.id === 'quiz' && !hasGemini) || !hasAbly ? 0.6 : 1
+                  }}
                   onClick={() => handleHost(game.id)}
                 >
-                  Host Game
+                  {(game.id === 'quiz' && !hasGemini) ? 'Requires Gemini' : !hasAbly ? 'Setup Required' : 'Host Game'}
                 </button>
               </div>
             </div>
