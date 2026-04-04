@@ -1,3 +1,4 @@
+export const SERVER_URL = `ws://${window.location.hostname}:3001`;
 export const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
 export const PLAYER_COLORS_CSS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
 export const PLAYER_NAMES_FALLBACK = ['Red', 'Blue', 'Green', 'Yellow'];
