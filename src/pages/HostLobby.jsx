@@ -17,13 +17,12 @@ export default function HostLobby() {
   const [error, setError] = useState(null);
   const channelRef = useRef(null);
   const joinUrl = getJoinUrl(roomCode);
-  const { ablyKey } = getSettings();
-  const envAblyKey = import.meta.env.VITE_ABLY_API_KEY;
+  const s = getSettings();
+  const ablyKey = s.userAblyKey || s.systemAblyKey;
   const playerId = getOrCreatePlayerId();
 
   useEffect(() => {
-    const effectiveAblyKey = ablyKey || envAblyKey;
-    if (!effectiveAblyKey) { navigate('/'); return; }
+    if (!ablyKey) { navigate('/'); return; }
 
     QRCode.toDataURL(joinUrl, { width: 200, margin: 1, color: { dark: '#f1f5f9', light: '#0f0f2d' } })
       .then(setQrUrl);
@@ -33,7 +32,7 @@ export default function HostLobby() {
 
     const setupAbly = async () => {
       try {
-        const client = getAblyClient(effectiveAblyKey, playerId);
+        const client = getAblyClient(ablyKey, playerId);
         const channel = getRoomChannel(client, roomCode);
         channelRef.current = channel;
 
