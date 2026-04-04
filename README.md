@@ -7,29 +7,37 @@ Three local multiplayer party games built with React + Phaser + Ably.
 - **🧠 Blitz Quiz** — AI-generated trivia. Buzz in first, answer right!
 - **🎨 Scribble Rush** — Draw it, guess it. Scribble.io-style party fun!
 
-## Setup
+## Setup (iOS/Mobile + Vercel)
 
-### 1. Install dependencies
+### 1. Set up API Keys
+You need two API keys for all features to work:
+- **Ably API Key**: [Get one free at ably.com](https://ably.com) (Required for all games)
+- **Gemini API Key**: [Get one free at aistudio.google.com](https://aistudio.google.com/apikey) (Required for Blitz Quiz)
+
+### 2. Deploy to Vercel (from Mobile)
+1. **Push your code** to a GitHub repository.
+2. Go to **[vercel.com](https://vercel.com)** in Safari/Chrome.
+3. Tap **"Add New..."** → **"Project"**.
+4. Import your GitHub repository.
+5. **Before clicking Deploy**, expand the **"Environment Variables"** section:
+   - **Key**: `VITE_ABLY_API_KEY` | **Value**: (your Ably key)
+   - **Key**: `VITE_GEMINI_API_KEY` | **Value**: (your Gemini key)
+   - Tap **"Add"** after each one.
+6. Tap **"Deploy"**.
+
+### 3. Alternative: In-Game Setup
+If you don't want to use Vercel environment variables:
+1. Open your deployed app.
+2. Tap **Settings** ⚙️ on the home screen.
+3. Paste your keys directly into the fields and tap **Save Keys**.
+*Note: This saves keys to your phone's browser only.*
+
+### 4. Local Development (Optional)
+If you have a terminal on iOS (e.g. iSH, a-Shell):
 ```bash
 npm install
-```
-
-### 2. Get API keys
-- **Ably** (required for all games): Free at https://ably.com — grab a root API key
-- **Gemini** (required for Quiz): Free at https://aistudio.google.com/apikey
-
-### 3. Run dev server
-```bash
 npm run dev
 ```
-
-Open `http://localhost:5173` on your host screen (TV/monitor).
-
-### 4. Host a game
-1. Click **Settings** → paste your Ably key (+ Gemini key for Quiz)
-2. Click **Host Game** on any game card
-3. Players scan the QR code or go to `/join` on their phones
-4. Hit **Start** when everyone is in!
 
 ## Controls
 
