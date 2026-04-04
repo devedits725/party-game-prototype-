@@ -63,6 +63,14 @@ export default function Home() {
     setTimeout(() => { setSaved(false); setShowSettings(false); }, 1000);
   }
 
+  function clearUserKeys() {
+    setAblyKey('');
+    setGeminiKey('');
+    saveSettings('', '');
+    setSaved(true);
+    setTimeout(() => { setSaved(false); }, 1000);
+  }
+
   return (
     <div style={{ minHeight: '100vh', padding: '24px 16px' }}>
       {/* Header */}
@@ -114,9 +122,16 @@ export default function Home() {
                   onChange={e => setGeminiKey(e.target.value)}
                 />
               </div>
-              <button className="btn btn-primary" onClick={handleSave} style={{ width: 'fit-content' }}>
-                {saved ? '✓ Saved!' : 'Save Keys'}
-              </button>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button className="btn btn-primary" onClick={handleSave} style={{ width: 'fit-content' }}>
+                  {saved ? '✓ Saved!' : 'Save Keys'}
+                </button>
+                {(ablyKey || geminiKey) && (
+                  <button className="btn btn-ghost" onClick={clearUserKeys} style={{ width: 'fit-content', borderColor: 'rgba(239,68,68,0.3)', color: 'var(--red)' }}>
+                    Use System Keys
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
