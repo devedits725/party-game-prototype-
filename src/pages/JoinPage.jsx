@@ -15,6 +15,8 @@ export default function JoinPage() {
   const [game, setGame] = useState(null);
   const [players, setPlayers] = useState([]);
   const [myIndex, setMyIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const channelRef = useRef(null);
   const { ablyKey } = getSettings();
   const playerId = getOrCreatePlayerId();
@@ -26,29 +28,12 @@ export default function JoinPage() {
     if (code) setStep('enter-name');
   }, [code]);
 
-  function handleCodeSubmit(e) {
-    e.preventDefault();
-    if (roomCode.length === 4) setStep('enter-name');
-  }
+  // Handle subscriptions in a separate effect
+  useEffect(() => {
+    if (step !== 'lobby' && step !== 'playing') return;
+    if (!channelRef.current) return;
 
-  async function handleJoin(e) {
-    e.preventDefault();
-    if (!name.trim() || (!ablyKey && !envAblyKey)) return;
-    if (!ablyKey && !envAblyKey) {
-      alert('Please set your Ably API key in the host settings first, then rejoin.');
-      return;
-    }
-
-    const effectiveAblyKey = ablyKey || envAblyKey;
-    const client = getAblyClient(effectiveAblyKey);
-    const channel = getRoomChannel(client, roomCode);
-    channelRef.current = channel;
-
-    await enterPresence(channel, { role: 'player', name: name.trim() });
-
-    // Ask host for room info
-    channel.publish('player:request-info', { playerId });
-
+    const channel = channelRef.current;
     const unsub = subscribeAll(channel, (type, data) => {
       if (type === 'room:info' || type === 'room:start') {
         setGame(data.game);
@@ -57,22 +42,49 @@ export default function JoinPage() {
           const idx = data.players.findIndex(p => p.id === playerId);
           setMyIndex(idx >= 0 ? idx : 0);
         }
-        setStep(type === 'room:start' ? 'playing' : 'lobby');
-      }
-      if (type === 'room:start') {
-        setGame(data.game);
-        setPlayers(data.players || []);
-        const idx = (data.players || []).findIndex(p => p.id === playerId);
-        setMyIndex(idx >= 0 ? idx : 0);
-        setStep('playing');
+        if (type === 'room:start') setStep('playing');
       }
       if (type === 'room:end') {
         setStep('lobby');
       }
     });
 
-    setStep('lobby');
-    return () => { unsub(); channel.presence.leave(); };
+    return () => {
+      unsub();
+      channel.presence.leave();
+    };
+  }, [step, playerId]);
+
+  function handleCodeSubmit(e) {
+    e.preventDefault();
+    if (roomCode.length === 4) setStep('enter-name');
+  }
+
+  async function handleJoin(e) {
+    e.preventDefault();
+    const effectiveAblyKey = ablyKey || envAblyKey;
+    if (!name.trim() || !effectiveAblyKey) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const client = getAblyClient(effectiveAblyKey);
+      const channel = getRoomChannel(client, roomCode);
+      channelRef.current = channel;
+
+      await enterPresence(channel, { role: 'player', name: name.trim() });
+
+      // Ask host for room info
+      channel.publish('player:request-info', { playerId });
+
+      setStep('lobby');
+    } catch (err) {
+      console.error('Join error:', err);
+      setError('Failed to join room. Please check the code and your connection.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const GAME_META = {
@@ -122,6 +134,11 @@ export default function JoinPage() {
                 ⚠️ No Ably API key found. Ask the host to set their key first, then share the join link.
               </div>
             )}
+            {error && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: '#ef4444' }}>
+                {error}
+              </div>
+            )}
             <form onSubmit={handleJoin}>
               <input
                 type="text" maxLength={16} autoFocus autoCapitalize="words"
@@ -129,9 +146,10 @@ export default function JoinPage() {
                 onChange={e => setName(e.target.value)}
                 placeholder="Enter your name..."
                 style={{ fontSize: 20, textAlign: 'center', marginBottom: 16 }}
+                disabled={loading}
               />
-              <button type="submit" className="btn btn-primary btn-lg w-full" disabled={!name.trim()}>
-                Join! 🎮
+              <button type="submit" className="btn btn-primary btn-lg w-full" disabled={!name.trim() || loading}>
+                {loading ? 'Joining...' : 'Join! 🎮'}
               </button>
             </form>
           </div>
