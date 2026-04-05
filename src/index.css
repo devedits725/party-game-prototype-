@@ -1,0 +1,154 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #07071a;
+  --surface: #0f0f2d;
+  --surface2: #1a1a3e;
+  --border: rgba(139,92,246,0.2);
+  --border2: rgba(139,92,246,0.4);
+  --purple: #8b5cf6;
+  --purple-light: #a78bfa;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --teal: #10b981;
+  --text: #f1f5f9;
+  --muted: rgba(241,245,249,0.5);
+  --font-display: 'Fredoka', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: var(--bg);
+  background-image: radial-gradient(rgba(139,92,246,0.12) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+#root { min-height: 100vh; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Typography */
+h1, h2, h3, h4 { font-family: var(--font-display); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 24px; border-radius: 12px; border: none; cursor: pointer;
+  font-family: var(--font-display); font-size: 16px; font-weight: 500;
+  transition: all 0.15s; user-select: none; text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: scale(0.96); }
+.btn-primary {
+  background: var(--purple); color: white;
+}
+.btn-primary:hover { background: var(--purple-light); }
+.btn-ghost {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border2);
+}
+.btn-ghost:hover { background: var(--surface2); }
+.btn-lg { padding: 16px 32px; font-size: 18px; border-radius: 14px; }
+.btn-sm { padding: 8px 16px; font-size: 14px; border-radius: 8px; }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+/* Input */
+input, textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  padding: 10px 14px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+input:focus, textarea:focus { border-color: var(--purple); }
+input::placeholder { color: var(--muted); }
+
+/* Badge */
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 500; font-family: var(--font-display);
+}
+
+/* Utility */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.w-full { width: 100%; }
+.text-center { text-align: center; }
+.text-muted { color: var(--muted); }
+.text-sm { font-size: 13px; }
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
+.mt-6 { margin-top: 24px; }
+
+/* Glow effects */
+.glow-purple { box-shadow: 0 0 20px rgba(139,92,246,0.3); }
+.glow-red    { box-shadow: 0 0 20px rgba(239,68,68,0.3); }
+.glow-amber  { box-shadow: 0 0 20px rgba(245,158,11,0.3); }
+.glow-teal   { box-shadow: 0 0 20px rgba(16,185,129,0.3); }
+
+/* Player colors */
+.player-1 { color: #ef4444; }
+.player-2 { color: #3b82f6; }
+.player-3 { color: #10b981; }
+.player-4 { color: #f59e0b; }
+.player-1-bg { background: #ef4444; }
+.player-2-bg { background: #3b82f6; }
+.player-3-bg { background: #10b981; }
+.player-4-bg { background: #f59e0b; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { 0% { transform:scale(0.8); opacity:0; } 60% { transform:scale(1.1); } 100% { transform:scale(1); opacity:1; } }
+
+.animate-fade-in { animation: fadeIn 0.3s ease forwards; }
+.animate-pulse { animation: pulse 2s infinite; }
+.animate-pop { animation: pop 0.4s ease forwards; }
+
+/* Mobile touch controls */
+.touch-btn {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Health bar */
+.health-bar {
+  height: 8px; border-radius: 4px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.health-fill {
+  height: 100%; border-radius: 4px;
+  transition: width 0.2s;
+}
