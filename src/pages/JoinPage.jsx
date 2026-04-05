@@ -20,7 +20,6 @@ export default function JoinPage() {
 
   const [activeChannel, setActiveChannel] = useState(null);
   const s = getSettings();
-  const ablyKey = s.userAblyKey || s.systemAblyKey;
   const playerId = getOrCreatePlayerId();
 
   // If code in URL, skip to name entry
@@ -68,8 +67,8 @@ export default function JoinPage() {
 
   async function handleJoin(e) {
     e.preventDefault();
-    if (!name.trim() || !ablyKey) {
-      setError("Missing API key or name");
+    if (!name.trim()) {
+      setError("Please enter your name");
       return;
     }
 
@@ -77,7 +76,7 @@ export default function JoinPage() {
     setError(null);
 
     try {
-      const client = getAblyClient(ablyKey, playerId);
+      const client = getAblyClient('', playerId);
       const channel = getRoomChannel(client, roomCode);
 
       // Test connection/channel access
@@ -139,11 +138,6 @@ export default function JoinPage() {
           <div className="animate-fade-in">
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, marginBottom: 8, textAlign: 'center' }}>What's your name?</h1>
             <p style={{ color: 'var(--muted)', textAlign: 'center', marginBottom: 32 }}>Room: <strong>{roomCode}</strong></p>
-            {!ablyKey && (
-              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: '#ef4444' }}>
-                ⚠️ No Ably API key found. Ask the host to set their key first, then share the join link.
-              </div>
-            )}
             {error && (
               <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: '#ef4444' }}>
                 {error}

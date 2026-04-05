@@ -25,12 +25,9 @@ export default function HostLobby() {
   const channelRef = useRef(null);
   const joinUrl = getJoinUrl(roomCode);
   const s = getSettings();
-  const ablyKey = s.userAblyKey || s.systemAblyKey;
   const playerId = getOrCreatePlayerId();
 
   useEffect(() => {
-    if (!ablyKey) { navigate('/'); return; }
-
     QRCode.toDataURL(joinUrl, { width: 200, margin: 1, color: { dark: '#f1f5f9', light: '#0f0f2d' } })
       .then(setQrUrl);
 
@@ -40,7 +37,7 @@ export default function HostLobby() {
 
     const setupAbly = async () => {
       try {
-        const client = getAblyClient(ablyKey, playerId);
+        const client = getAblyClient('', playerId);
         const channel = getRoomChannel(client, roomCode);
         if (!mounted) return;
         channelRef.current = channel;
@@ -74,12 +71,9 @@ export default function HostLobby() {
         });
         unsubFunc = unsub;
       } catch (err) {
-        console.error('Ably setup error:', err);
+        console.error('P2P setup error:', err);
         let msg = err.message || 'Unknown error';
-        if (msg.includes('401')) {
-          msg = 'Invalid API Key. Please check your Ably settings.';
-        }
-        setError(`Failed to connect to game server: ${msg}`);
+        setError(`Failed to connect to game: ${msg}`);
       }
     };
 
@@ -91,7 +85,7 @@ export default function HostLobby() {
       unsubPresenceFunc();
       unsubFunc();
     };
-  }, [ablyKey, game, roomCode, navigate, joinUrl, playerId]);
+  }, [game, roomCode, navigate, joinUrl, playerId]);
 
   function startGame() {
     if (players.length === 0) return;

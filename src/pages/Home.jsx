@@ -42,31 +42,25 @@ export default function Home() {
   const navigate = useNavigate();
   const [showSettings, setShowSettings] = useState(false);
   const s = getSettings();
-  const [ablyKey, setAblyKey] = useState(s.userAblyKey);
   const [geminiKey, setGeminiKey] = useState(s.userGeminiKey);
   const [saved, setSaved] = useState(false);
 
-  const envAblyKey = s.systemAblyKey;
   const envGeminiKey = s.systemGeminiKey;
-
-  const hasAbly = !!(ablyKey || envAblyKey);
   const hasGemini = !!(geminiKey || envGeminiKey);
 
   function handleHost(gameId) {
-    if (!hasAbly) { setShowSettings(true); return; }
     navigate(`/host/${gameId}`);
   }
 
   function handleSave() {
-    saveSettings(ablyKey, geminiKey);
+    saveSettings(geminiKey);
     setSaved(true);
     setTimeout(() => { setSaved(false); setShowSettings(false); }, 1000);
   }
 
   function clearUserKeys() {
-    setAblyKey('');
     setGeminiKey('');
-    saveSettings('', '');
+    saveSettings('');
     setSaved(true);
     setTimeout(() => { setSaved(false); }, 1000);
   }
@@ -91,26 +85,12 @@ export default function Home() {
         {showSettings && (
           <div className="card animate-fade-in" style={{ marginBottom: 32, borderColor: 'var(--border2)' }}>
             <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 16 }}>API Keys</h3>
-            {(envAblyKey || envGeminiKey) && (
+            {envGeminiKey && (
               <div style={{ fontSize: 12, color: 'var(--purple-light)', marginBottom: 16, background: 'rgba(168, 85, 247, 0.1)', padding: '8px 12px', borderRadius: 8 }}>
                 ✨ System keys are active. You can still override them below if needed.
               </div>
             )}
             <div style={{ display: 'grid', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 13, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>
-                  Ably API Key {!envAblyKey && <span style={{ color: 'var(--red)' }}>*</span>}
-                  <span style={{ marginLeft: 8, fontSize: 11 }}>
-                    — <a href="https://ably.com" target="_blank" rel="noreferrer" style={{ color: 'var(--purple-light)' }}>Get free key at ably.com</a>
-                  </span>
-                </label>
-                <input
-                  type="password"
-                  placeholder={envAblyKey ? "System Managed Key Active" : "xxxxx.xxxxxx:xxxxxxxxxxxxxxxx"}
-                  value={ablyKey}
-                  onChange={e => setAblyKey(e.target.value)}
-                />
-              </div>
               <div>
                 <label style={{ fontSize: 13, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>
                   Gemini API Key <span style={{ color: 'var(--muted)', fontSize: 11 }}>(required for Quiz game)</span>
@@ -126,7 +106,7 @@ export default function Home() {
                 <button className="btn btn-primary" onClick={handleSave} style={{ width: 'fit-content' }}>
                   {saved ? '✓ Saved!' : 'Save Keys'}
                 </button>
-                {(ablyKey || geminiKey) && (
+                {geminiKey && (
                   <button className="btn btn-ghost" onClick={clearUserKeys} style={{ width: 'fit-content', borderColor: 'rgba(239,68,68,0.3)', color: 'var(--red)' }}>
                     Use System Keys
                   </button>
@@ -188,11 +168,11 @@ export default function Home() {
                     background: game.color,
                     color: 'white',
                     whiteSpace: 'nowrap',
-                    opacity: (game.id === 'quiz' && !hasGemini) || !hasAbly ? 0.6 : 1
+                    opacity: (game.id === 'quiz' && !hasGemini) ? 0.6 : 1
                   }}
                   onClick={() => handleHost(game.id)}
                 >
-                  {(game.id === 'quiz' && !hasGemini) ? 'Requires Gemini' : !hasAbly ? 'Setup Required' : 'Host Game'}
+                  {(game.id === 'quiz' && !hasGemini) ? 'Requires Gemini' : 'Host Game'}
                 </button>
               </div>
             </div>

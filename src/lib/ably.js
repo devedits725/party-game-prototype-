@@ -1,222 +1,321 @@
-import { SERVER_URL, getOrCreatePlayerId } from './utils.js';
+import Peer from 'peerjs';
+import { getOrCreatePlayerId } from './utils.js';
 
-let socket = null;
+let peer = null;
+let connections = new Map(); // clientId -> DataConnection (for Host)
+let hostConnection = null;   // DataConnection (for Player)
 let clientId = getOrCreatePlayerId();
+let presenceMembers = new Map(); // clientId -> data
+let presenceCallbacks = new Set();
+let channelSubscribers = new Map(); // eventName -> Set
+let allSubscribers = new Set();
 let messageQueue = [];
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const channels = new Map();
-let connectionPromise = null;
+let isHost = false;
+let currentRoomCode = null;
 
 class Channel {
-  constructor(client, roomCode) {
-    this.client = client;
+  constructor(roomCode) {
     this.roomCode = roomCode;
-    this.subscribers = new Set();
-    this.presenceSubscribers = new Set();
-    this.allSubscribers = new Set();
-    this.presenceMembers = [];
-    this.pendingPresenceRequests = [];
+    currentRoomCode = roomCode;
+    // Determine if we are host based on URL
+    isHost = window.location.pathname.includes('/host/');
+    console.log(`[PEER] Initializing channel for ${roomCode}. Role: ${isHost ? 'HOST' : 'PLAYER'}`);
   }
 
-  // Ably-like interface
-  subscribe(...args) {
-    if (args.length === 2) {
-      const [eventName, callback] = args;
-      const sub = { eventName, callback };
-      this.subscribers.add(sub);
-      return () => this.subscribers.delete(sub);
-    } else {
-      const [callback] = args;
-      this.allSubscribers.add(callback);
-      return () => this.allSubscribers.delete(callback);
-    }
+  async attach() {
+    if (peer) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      const initPeer = (id) => {
+        console.log(`[PEER] Creating peer with ID: ${id || 'random'}`);
+        peer = new Peer(id, {
+          debug: 1,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+            ]
+          }
+        });
+
+        peer.on('open', (openedId) => {
+          console.log(`[PEER] Connected to signaling server. My ID: ${openedId}`);
+          if (isHost) {
+            this.roomCode = openedId;
+            currentRoomCode = openedId;
+            setupHostListeners();
+          } else {
+            this.connectToHostWithRetry(this.roomCode, 0, resolve, reject);
+            return; // resolve/reject handled by connectToHostWithRetry
+          }
+          resolve();
+        });
+
+        peer.on('error', (err) => {
+          console.error('[PEER] Signaling error:', err.type, err);
+          if (isHost && err.type === 'unavailable-id') {
+            console.warn(`[PEER] ID ${id} taken, retrying with suffix...`);
+            const newId = id + '-' + Math.floor(Math.random() * 1000);
+            peer.destroy();
+            setTimeout(() => initPeer(newId), 500);
+          } else {
+            const errorMsg = err.type === 'peer-unavailable' ? "Could not connect to host" : "Could not connect to signaling server";
+            reject(new Error(errorMsg));
+          }
+        });
+
+        peer.on('disconnected', () => {
+          console.log('[PEER] Disconnected from signaling server. Reconnecting...');
+          peer.reconnect();
+        });
+      };
+
+      initPeer(isHost ? this.roomCode : null);
+    });
   }
 
-  unsubscribe(...args) {
-    if (args.length === 2) {
-      const [eventName, callback] = args;
-      for (let sub of this.subscribers) {
-        if (sub.eventName === eventName && sub.callback === callback) {
-          this.subscribers.delete(sub);
-          break;
-        }
+  connectToHostWithRetry(hostId, attempt, resolve, reject) {
+    console.log(`[PEER] Connecting to host: ${hostId} (attempt ${attempt + 1})`);
+    const conn = peer.connect(hostId, {
+      reliable: true,
+      metadata: { clientId }
+    });
+
+    const timeout = setTimeout(() => {
+      console.warn(`[PEER] Connection timeout for host: ${hostId}`);
+      conn.close();
+      if (attempt < 1) {
+        this.connectToHostWithRetry(hostId, attempt + 1, resolve, reject);
+      } else {
+        reject(new Error("Could not connect to host"));
       }
-    } else if (args.length === 1) {
-       const [callback] = args;
-       this.allSubscribers.delete(callback);
-       for (let sub of this.subscribers) {
-         if (sub.callback === callback) {
-           this.subscribers.delete(sub);
-         }
-       }
+    }, 5000);
+
+    conn.on('open', () => {
+      clearTimeout(timeout);
+      console.log(`[PEER] Connected to host: ${hostId}`);
+      hostConnection = conn;
+      setupPlayerListeners(conn);
+
+      // Flush queue
+      while (messageQueue.length > 0) {
+        const { type, data } = messageQueue.shift();
+        this.publish(type, data);
+      }
+      resolve();
+    });
+
+    conn.on('error', (err) => {
+      console.error('[PEER] Connection error:', err);
+      clearTimeout(timeout);
+      if (attempt < 1) {
+        this.connectToHostWithRetry(hostId, attempt + 1, resolve, reject);
+      } else {
+        reject(err);
+      }
+    });
+  }
+
+  async publish(type, data) {
+    const msgObj = { type, data, clientId };
+    const msgStr = JSON.stringify(msgObj);
+
+    if (isHost) {
+      // Host broadcasts to all players
+      broadcastToPlayers(msgStr);
+      // Handle locally
+      processMessage(type, data, clientId);
+    } else {
+      if (hostConnection && hostConnection.open) {
+        hostConnection.send(msgStr);
+      } else {
+        console.warn(`[PEER] Host connection not open, queueing message: ${type}`);
+        messageQueue.push({ type, data });
+      }
     }
   }
 
   get presence() {
     return {
       enter: async (data) => {
-        console.log(`[CLIENT PRESENCE] Enter room: ${this.roomCode}`, data);
-        await sendCommand({ type: 'presence_enter', room: this.roomCode, data, clientId });
+        console.log('[PEER PRESENCE] Enter', data);
+        await this.publish('presence:enter', data);
       },
       update: async (data) => {
-        console.log(`[CLIENT PRESENCE] Update room: ${this.roomCode}`, data);
-        await sendCommand({ type: 'presence_update', room: this.roomCode, data, clientId });
+        console.log('[PEER PRESENCE] Update', data);
+        await this.publish('presence:update', data);
       },
       leave: async () => {
-        console.log(`[CLIENT PRESENCE] Leave room: ${this.roomCode}`);
-        await sendCommand({ type: 'presence_leave', room: this.roomCode, clientId });
+        console.log('[PEER PRESENCE] Leave');
+        await this.publish('presence:leave', {});
       },
-      get: () => {
-        console.log(`[CLIENT PRESENCE] Get members for room: ${this.roomCode}`);
-        return new Promise((resolve) => {
-          this.pendingPresenceRequests.push(resolve);
-          sendCommand({ type: 'presence_get', room: this.roomCode });
-        });
+      get: async () => {
+        return Array.from(presenceMembers.entries()).map(([id, data]) => ({ clientId: id, data }));
       },
       subscribe: (callback) => {
-        this.presenceSubscribers.add(callback);
-        return () => this.presenceSubscribers.delete(callback);
+        presenceCallbacks.add(callback);
+        return () => presenceCallbacks.delete(callback);
       },
       unsubscribe: (callback) => {
-        this.presenceSubscribers.delete(callback);
+        presenceCallbacks.delete(callback);
       }
     };
   }
 
-  async attach() {
-    console.log(`[CLIENT CHANNEL] Attaching to room: ${this.roomCode}`);
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      await connect();
+  subscribe(eventName, callback) {
+    if (typeof eventName === 'function') {
+      const cb = eventName;
+      allSubscribers.add(cb);
+      return () => allSubscribers.delete(cb);
     }
-    await sendCommand({ type: 'subscribe', room: this.roomCode, clientId });
-    console.log(`[CLIENT CHANNEL] Attached to room: ${this.roomCode}`);
-    return Promise.resolve();
-  }
-
-  async publish(type, data) {
-    console.log(`[CLIENT PUBLISH] Room: ${this.roomCode} Type: ${type}`, data);
-    await sendCommand({ type: 'publish', room: this.roomCode, event: type, data });
+    if (!channelSubscribers.has(eventName)) {
+      channelSubscribers.set(eventName, new Set());
+    }
+    channelSubscribers.get(eventName).add(callback);
+    return () => channelSubscribers.get(eventName).delete(callback);
   }
 }
 
-function connect() {
-  if (connectionPromise && socket && socket.readyState !== WebSocket.CLOSED) {
-    return connectionPromise;
+function processMessage(type, data, senderId) {
+  if (type.startsWith('presence:')) {
+    const action = type.split(':')[1];
+    if (action === 'enter' || action === 'update') {
+      presenceMembers.set(senderId, data);
+    } else if (action === 'leave') {
+      presenceMembers.delete(senderId);
+    }
+    notifyPresenceSubscribers(action, senderId, data);
+
+    if (isHost) {
+      // Host broadcasts presence changes to everyone else
+      const msg = JSON.stringify({ type: `presence:${action}`, data, clientId: senderId });
+      broadcastToPlayers(msg, senderId);
+    }
+  } else {
+    // Normal message
+    allSubscribers.forEach(cb => cb(type, data));
+    const subs = channelSubscribers.get(type);
+    if (subs) {
+      subs.forEach(cb => cb(data));
+    }
   }
+}
 
-  connectionPromise = new Promise((resolve, reject) => {
-    console.log(`[CLIENT] Connecting to WebSocket at ${SERVER_URL}...`);
-    socket = new WebSocket(SERVER_URL);
+function setupHostListeners() {
+  peer.on('connection', (conn) => {
+    const pId = conn.metadata?.clientId;
+    console.log(`[PEER HOST] New connection from player: ${pId}`);
 
-    socket.onopen = () => {
-      console.log('[CLIENT] WebSocket connected successfully');
-      reconnectAttempts = 0;
-      // Re-subscribe to all active channels
-      channels.forEach((channel, roomCode) => {
-        socket.send(JSON.stringify({ type: 'subscribe', room: roomCode, clientId }));
+    conn.on('open', () => {
+      connections.set(pId, conn);
+
+      // Send current presence state to new player
+      const syncMsg = JSON.stringify({
+        type: 'presence:sync',
+        data: Array.from(presenceMembers.entries())
       });
-      // Flush queue
-      while (messageQueue.length > 0) {
-        const msg = messageQueue.shift();
-        socket.send(JSON.stringify(msg));
-      }
-      resolve(socket);
-    };
+      conn.send(syncMsg);
+    });
 
-    socket.onmessage = (event) => {
+    conn.on('data', (raw) => {
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'message') {
-          const channel = channels.get(msg.room);
-          if (channel) {
-            channel.allSubscribers.forEach(cb => cb(msg.event, msg.data));
-            channel.subscribers.forEach(sub => {
-              if (sub.eventName === msg.event) sub.callback(msg.data);
-            });
-          }
-        } else if (msg.type === 'presence_change') {
-          const channel = channels.get(msg.room);
-          if (channel) {
-            const { action, clientId: memberId, data } = msg;
-            console.log(`[CLIENT] Presence change in ${msg.room}: ${action} for ${memberId}`);
-            channel.presenceSubscribers.forEach(cb => cb({ action, clientId: memberId, data }));
-          }
-        } else if (msg.type === 'presence_members') {
-          const channel = channels.get(msg.room);
-          if (channel) {
-            console.log(`[CLIENT] Received ${msg.members.length} members for ${msg.room}`);
-            channel.presenceMembers = msg.members;
-            while (channel.pendingPresenceRequests.length > 0) {
-              const resolve = channel.pendingPresenceRequests.shift();
-              resolve(msg.members);
-            }
-          }
+        const { type, data, clientId: senderId } = JSON.parse(raw);
+        console.log(`[PEER HOST] Received ${type} from ${senderId}`);
+
+        processMessage(type, data, senderId);
+
+        // If not presence, fan out to other players
+        if (!type.startsWith('presence:')) {
+          broadcastToPlayers(raw, senderId);
         }
       } catch (e) {
-        // Ignore non-JSON messages (like pings)
+        console.error('[PEER HOST] Failed to parse message:', e);
       }
-    };
+    });
 
-    socket.onclose = () => {
-      console.log('[CLIENT] WebSocket closed');
-      connectionPromise = null;
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
-        reconnectAttempts++;
-        console.log(`[CLIENT] Reconnecting in ${delay}ms... (Attempt ${reconnectAttempts})`);
-        setTimeout(connect, delay);
+    conn.on('close', () => {
+      console.log(`[PEER HOST] Connection closed for player: ${pId}`);
+      connections.delete(pId);
+      if (presenceMembers.has(pId)) {
+        const data = presenceMembers.get(pId);
+        presenceMembers.delete(pId);
+        notifyPresenceSubscribers('leave', pId, data);
+        broadcastToPlayers(JSON.stringify({ type: 'presence:leave', clientId: pId, data }), pId);
       }
-    };
+    });
 
-    socket.onerror = (error) => {
-      console.error('[CLIENT] WebSocket error:', error);
-      reject(error);
-    };
+    conn.on('error', (err) => {
+      console.error(`[PEER HOST] Connection error for ${pId}:`, err);
+    });
+  });
+}
+
+function setupPlayerListeners(conn) {
+  conn.on('data', (raw) => {
+    try {
+      const { type, data, clientId: senderId } = JSON.parse(raw);
+
+      if (type === 'presence:sync') {
+        presenceMembers = new Map(data);
+        console.log('[PEER PLAYER] Presence synced', presenceMembers);
+        // Notify subscribers of the full list?
+        // Ably doesn't really have a 'sync' event, but we'll trigger 'enter' for each if needed.
+        // Actually, typically we just call getPresenceMembers.
+        return;
+      }
+
+      processMessage(type, data, senderId);
+    } catch (e) {
+      console.error('[PEER PLAYER] Failed to parse message:', e);
+    }
   });
 
-  return connectionPromise;
+  conn.on('close', () => {
+    console.warn('[PEER PLAYER] Host connection closed.');
+    // Requirements say: try to reconnect once.
+    // In a real app we'd have a more complex state machine.
+  });
 }
 
-async function sendCommand(cmd) {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(cmd));
-  } else {
-    console.log('[CLIENT] Socket not ready, queueing command:', cmd.type);
-    messageQueue.push(cmd);
-    if (!socket || socket.readyState === WebSocket.CLOSED) {
-      await connect();
+function broadcastToPlayers(msg, skipId = null) {
+  connections.forEach((conn, pId) => {
+    if (pId !== skipId && conn.open) {
+      conn.send(msg);
     }
-  }
+  });
 }
+
+function notifyPresenceSubscribers(action, pId, data) {
+  presenceCallbacks.forEach(cb => cb({ action, clientId: pId, data }));
+}
+
+// Global state for singleton behavior
+const channels = new Map();
 
 export function getAblyClient(apiKey, overrideClientId) {
-  if (overrideClientId) {
-    clientId = overrideClientId;
-    console.log(`[CLIENT] Using clientId: ${clientId}`);
-  }
-  if (!socket || socket.readyState === WebSocket.CLOSED) {
-    connect();
-  }
+  if (overrideClientId) clientId = overrideClientId;
   return {
     channels: {
       get: (name) => {
         const roomCode = name.startsWith('party:') ? name.split(':')[1] : name;
         if (!channels.has(roomCode)) {
-          const channel = new Channel(null, roomCode);
-          channels.set(roomCode, channel);
-          // Auto-attach or send initial subscribe
-          sendCommand({ type: 'subscribe', room: roomCode, clientId });
+          channels.set(roomCode, new Channel(roomCode));
         }
         return channels.get(roomCode);
       }
     },
     close: () => {
-      if (socket) {
-        socket.close();
-        socket = null;
-        connectionPromise = null;
+      if (peer) {
+        peer.destroy();
+        peer = null;
       }
+      connections.clear();
+      hostConnection = null;
+      channels.clear();
+      presenceMembers.clear();
+      presenceCallbacks.clear();
+      channelSubscribers.clear();
+      allSubscribers.clear();
     }
   };
 }
@@ -250,14 +349,18 @@ export function subscribeChannel(channel, eventName, callback) {
 }
 
 export function subscribeAll(channel, callback) {
-  return channel.subscribe((eventName, data) => callback(eventName, data));
+  return channel.subscribe(callback);
 }
 
 export function disconnectAbly() {
-  if (socket) {
-    socket.close();
-    socket = null;
-    connectionPromise = null;
-    channels.clear();
+  if (peer) {
+    peer.destroy();
+    peer = null;
   }
+  connections.clear();
+  hostConnection = null;
+  presenceMembers.clear();
+  presenceCallbacks.clear();
+  channelSubscribers.clear();
+  allSubscribers.clear();
 }

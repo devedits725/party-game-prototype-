@@ -20,37 +20,25 @@ export function getJoinUrl(roomCode) {
 
 export function getSettings() {
   try {
-    // HARDCODED ABLY KEY PLACEHOLDER - REPLACE THE STRING BELOW
-    const sAbly = 'fp0xag.eFWpYA:BB0NoPNj6jOA-7Y4kcd_PYxupecmRzJYfROkvZdpm5s';
-
     const sGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
-    const uAbly = (localStorage.getItem('ably_key') || '').trim();
     const uGemini = (localStorage.getItem('gemini_key') || '').trim();
     return {
-      systemAblyKey: sAbly.trim(),
       systemGeminiKey: sGemini.trim(),
-      userAblyKey: uAbly,
       userGeminiKey: uGemini,
-      ablyKey: uAbly || sAbly.trim(),
       geminiKey: uGemini || sGemini.trim(),
     };
   } catch (e) {
-    const sAbly = 'REPLACE_WITH_YOUR_ABLY_API_KEY';
     const sGemini = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
     return {
-      systemAblyKey: sAbly.trim(),
       systemGeminiKey: sGemini,
-      userAblyKey: '',
       userGeminiKey: '',
-      ablyKey: sAbly.trim(),
       geminiKey: sGemini,
     };
   }
 }
 
-export function saveSettings(ablyKey, geminiKey) {
+export function saveSettings(geminiKey) {
   try {
-    localStorage.setItem('ably_key', ablyKey);
     localStorage.setItem('gemini_key', geminiKey);
   } catch (e) {
     console.error('Failed to save settings to localStorage:', e);

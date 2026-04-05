@@ -9,6 +9,7 @@
     "preview": "vite preview --host"
   },
   "dependencies": {
+    "peerjs": "^1.5.5",
     "phaser": "^3.80.1",
     "qrcode": "^1.5.3",
     "react": "^18.3.1",
