@@ -6,6 +6,7 @@ let messageQueue = [];
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const channels = new Map();
+let connectionPromise = null;
 
 class Channel {
   constructor(client, roomCode) {
@@ -55,15 +56,19 @@ class Channel {
   get presence() {
     return {
       enter: async (data) => {
-        sendCommand({ type: 'presence_enter', room: this.roomCode, data, clientId });
+        console.log(`[CLIENT PRESENCE] Enter room: ${this.roomCode}`, data);
+        await sendCommand({ type: 'presence_enter', room: this.roomCode, data, clientId });
       },
       update: async (data) => {
-        sendCommand({ type: 'presence_update', room: this.roomCode, data, clientId });
+        console.log(`[CLIENT PRESENCE] Update room: ${this.roomCode}`, data);
+        await sendCommand({ type: 'presence_update', room: this.roomCode, data, clientId });
       },
       leave: async () => {
-        // Leave is handled on disconnect, but could be explicit
+        console.log(`[CLIENT PRESENCE] Leave room: ${this.roomCode}`);
+        await sendCommand({ type: 'presence_leave', room: this.roomCode, clientId });
       },
       get: () => {
+        console.log(`[CLIENT PRESENCE] Get members for room: ${this.roomCode}`);
         return new Promise((resolve) => {
           this.pendingPresenceRequests.push(resolve);
           sendCommand({ type: 'presence_get', room: this.roomCode });
@@ -80,21 +85,32 @@ class Channel {
   }
 
   async attach() {
+    console.log(`[CLIENT CHANNEL] Attaching to room: ${this.roomCode}`);
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      await connect();
+    }
+    await sendCommand({ type: 'subscribe', room: this.roomCode, clientId });
+    console.log(`[CLIENT CHANNEL] Attached to room: ${this.roomCode}`);
     return Promise.resolve();
   }
 
   async publish(type, data) {
-    sendCommand({ type: 'publish', room: this.roomCode, event: type, data });
+    console.log(`[CLIENT PUBLISH] Room: ${this.roomCode} Type: ${type}`, data);
+    await sendCommand({ type: 'publish', room: this.roomCode, event: type, data });
   }
 }
 
 function connect() {
-  return new Promise((resolve) => {
-    console.log(`Connecting to WebSocket at ${SERVER_URL}...`);
+  if (connectionPromise && socket && socket.readyState !== WebSocket.CLOSED) {
+    return connectionPromise;
+  }
+
+  connectionPromise = new Promise((resolve, reject) => {
+    console.log(`[CLIENT] Connecting to WebSocket at ${SERVER_URL}...`);
     socket = new WebSocket(SERVER_URL);
 
     socket.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('[CLIENT] WebSocket connected successfully');
       reconnectAttempts = 0;
       // Re-subscribe to all active channels
       channels.forEach((channel, roomCode) => {
@@ -122,13 +138,14 @@ function connect() {
         } else if (msg.type === 'presence_change') {
           const channel = channels.get(msg.room);
           if (channel) {
-            // Ably expectations: callback({ action, clientId, data })
             const { action, clientId: memberId, data } = msg;
+            console.log(`[CLIENT] Presence change in ${msg.room}: ${action} for ${memberId}`);
             channel.presenceSubscribers.forEach(cb => cb({ action, clientId: memberId, data }));
           }
         } else if (msg.type === 'presence_members') {
           const channel = channels.get(msg.room);
           if (channel) {
+            console.log(`[CLIENT] Received ${msg.members.length} members for ${msg.room}`);
             channel.presenceMembers = msg.members;
             while (channel.pendingPresenceRequests.length > 0) {
               const resolve = channel.pendingPresenceRequests.shift();
@@ -142,32 +159,43 @@ function connect() {
     };
 
     socket.onclose = () => {
-      console.log('WebSocket closed');
+      console.log('[CLIENT] WebSocket closed');
+      connectionPromise = null;
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
         reconnectAttempts++;
-        console.log(`Reconnecting in ${delay}ms... (Attempt ${reconnectAttempts})`);
+        console.log(`[CLIENT] Reconnecting in ${delay}ms... (Attempt ${reconnectAttempts})`);
         setTimeout(connect, delay);
       }
     };
 
     socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('[CLIENT] WebSocket error:', error);
+      reject(error);
     };
   });
+
+  return connectionPromise;
 }
 
-function sendCommand(cmd) {
+async function sendCommand(cmd) {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(cmd));
   } else {
+    console.log('[CLIENT] Socket not ready, queueing command:', cmd.type);
     messageQueue.push(cmd);
+    if (!socket || socket.readyState === WebSocket.CLOSED) {
+      await connect();
+    }
   }
 }
 
 export function getAblyClient(apiKey, overrideClientId) {
-  if (overrideClientId) clientId = overrideClientId;
-  if (!socket) {
+  if (overrideClientId) {
+    clientId = overrideClientId;
+    console.log(`[CLIENT] Using clientId: ${clientId}`);
+  }
+  if (!socket || socket.readyState === WebSocket.CLOSED) {
     connect();
   }
   return {
@@ -177,6 +205,7 @@ export function getAblyClient(apiKey, overrideClientId) {
         if (!channels.has(roomCode)) {
           const channel = new Channel(null, roomCode);
           channels.set(roomCode, channel);
+          // Auto-attach or send initial subscribe
           sendCommand({ type: 'subscribe', room: roomCode, clientId });
         }
         return channels.get(roomCode);
@@ -186,6 +215,7 @@ export function getAblyClient(apiKey, overrideClientId) {
       if (socket) {
         socket.close();
         socket = null;
+        connectionPromise = null;
       }
     }
   };
@@ -227,6 +257,7 @@ export function disconnectAbly() {
   if (socket) {
     socket.close();
     socket = null;
+    connectionPromise = null;
     channels.clear();
   }
 }

@@ -11,7 +11,14 @@ export default function HostLobby() {
   const { game } = useParams();
   const navigate = useNavigate();
   const [phase, setPhase] = useState('lobby'); // lobby | playing | ended
-  const [roomCode] = useState(() => generateRoomCode());
+  const [roomCode] = useState(() => {
+    let code = sessionStorage.getItem(`host_room_code_${game}`);
+    if (!code) {
+      code = generateRoomCode();
+      sessionStorage.setItem(`host_room_code_${game}`, code);
+    }
+    return code;
+  });
   const [players, setPlayers] = useState([]);
   const [qrUrl, setQrUrl] = useState('');
   const [error, setError] = useState(null);
