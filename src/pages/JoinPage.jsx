@@ -30,6 +30,7 @@ export default function JoinPage() {
 
     const client = getAblyClient('');
     const channel = getRoomChannel(client, roomCode);
+    channel._connectToHost(roomCode);
     channelRef.current = channel;
 
     const unsub = subscribeAll(channel, (type, data) => {
