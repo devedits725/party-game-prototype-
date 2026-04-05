@@ -8,8 +8,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-<Route path="/host/:game/:mode" element={<HostLobby />} />
-<Route path="/host/:game" element={<HostLobby />} />
+        <Route path="/host/:game/:mode" element={<HostLobby />} />
+        <Route path="/host/:game" element={<HostLobby />} />
         <Route path="/join/:code" element={<JoinPage />} />
         <Route path="/join" element={<JoinPage />} />
       </Routes>
