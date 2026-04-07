@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getAblyClient, getRoomChannel, subscribeAll, enterPresence, subscribePresence } from '../lib/ably.js'
-import { generateRoomCode, getJoinUrl, PLAYER_COLORS } from '../lib/utils.js'
+import { generateRoomCode, getJoinUrl, PLAYER_COLORS, getOrCreatePlayerId } from '../lib/utils.js'
 import FighterHost from '../games/fighter/FighterHost.jsx'
 import QuizHost from '../games/quiz/QuizHost.jsx'
 import ScribbleHost from '../games/scribble/ScribbleHost.jsx'
@@ -19,18 +19,23 @@ export default function HostLobby() {
 
   const channelRef = useRef(null);
   const playersRef = useRef([]);
+  const playerId = getOrCreatePlayerId();
 
   const joinUrl = getJoinUrl(roomCode);
 
   useEffect(() => {
+    let mounted = true;
+
     QRCode.toDataURL(joinUrl, {
       width: 200,
       margin: 1,
       color: { dark: '#f1f5f9', light: '#0f0f2d' },
-    }).then(setQrUrl);
+    }).then(url => {
+      if (mounted) setQrUrl(url);
+    });
 
     const client = getAblyClient('');
-    const channel = getRoomChannel(client, roomCode);
+    const channel = getRoomChannel(client, roomCode, { isHost: true, clientId: playerId });
     channelRef.current = channel;
 
     function rebuildPlayers() {
@@ -45,7 +50,7 @@ export default function HostLobby() {
       }));
 
       playersRef.current = ps;
-      setPlayers([...ps]);
+      if (mounted) setPlayers([...ps]);
     }
 
     const unsubPresence = subscribePresence(channel, (event) => {
@@ -55,26 +60,28 @@ export default function HostLobby() {
 
     const unsubAll = subscribeAll(channel, (type, data) => {
       if (type === 'player:request-info') {
+        console.log('[Lobby] Player requested info:', data.playerId);
         channel.publish('room:info', { game, phase: 'lobby', roomCode });
       }
     });
 
-    enterPresence(channel, { role: 'host', game });
-
-    const interval = setInterval(() => {
-      if (channel.peer) {
+    channel.whenReady().then(() => {
+      if (mounted) {
         setPeerStatus('ready');
-        clearInterval(interval);
+        enterPresence(channel, { role: 'host', game });
       }
-    }, 400);
+    }).catch(err => {
+      console.error("[Lobby] Peer init failed:", err);
+      if (mounted) setPeerStatus('error');
+    });
 
     return () => {
-      clearInterval(interval);
+      mounted = false;
       unsubPresence();
       unsubAll();
       try { channel.peer?.destroy(); } catch (_) {}
     };
-  }, []);
+  }, [roomCode, game, playerId, joinUrl]);
 
   function startGame() {
     const ps = playersRef.current;
@@ -135,11 +142,11 @@ export default function HostLobby() {
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                background: peerStatus === 'ready' ? '#10b981' : '#f59e0b',
+                background: peerStatus === 'ready' ? '#10b981' : peerStatus === 'error' ? '#ef4444' : '#f59e0b',
                 animation: peerStatus === 'starting' ? 'pulse 1.5s infinite' : 'none',
               }}
             />
-            {peerStatus === 'ready' ? 'P2P ready' : 'Connecting...'}
+            {peerStatus === 'ready' ? 'P2P ready' : peerStatus === 'error' ? 'P2P error' : 'Connecting...'}
           </div>
         </div>
 
