@@ -20,6 +20,13 @@ export default function JoinPage() {
 
   const channelRef = useRef(null);
   const playerId = getOrCreatePlayerId();
+  const cleanupRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (cleanupRef.current) cleanupRef.current();
+    }
+  }, []);
 
   async function handleJoin(e) {
     e.preventDefault();
@@ -28,43 +35,62 @@ export default function JoinPage() {
     setConnStatus('connecting');
     setStep('lobby');
 
-    const client = getAblyClient('');
-    const channel = getRoomChannel(client, roomCode);
-    channel._connectToHost(roomCode);
-    channelRef.current = channel;
+    try {
+      const client = getAblyClient('');
+      const channel = getRoomChannel(client, roomCode, { isHost: false, clientId: playerId });
+      channelRef.current = channel;
 
-    const unsub = subscribeAll(channel, (type, data) => {
-      if (type === 'room:info') {
-        setGame(data.game);
-        setConnStatus('connected');
-      }
+      // 1. Wait for Peer to be open
+      console.log('[Join] Waiting for Peer to open...');
+      await channel.whenReady();
 
-      if (type === 'room:start') {
-        setGame(data.game);
-        const ps = data.players || [];
-        setPlayers(ps);
-        const idx = ps.findIndex(p => p.id === playerId);
-        setMyIndex(idx >= 0 ? idx : 0);
-        setConnStatus('connected');
-        setStep('playing');
-      }
+      // 2. Attach listeners BEFORE connecting to host to ensure no messages are missed
+      const unsub = subscribeAll(channel, (type, data) => {
+        console.log('[Join] Received message:', type, data);
+        if (type === 'room:info') {
+          setGame(data.game);
+          setConnStatus('connected');
+        }
 
-      if (type === 'room:end') {
-        setStep('lobby');
-        setGame(null);
-      }
-    });
+        if (type === 'room:start') {
+          setGame(data.game);
+          const ps = data.players || [];
+          setPlayers(ps);
+          const idx = ps.findIndex(p => p.id === playerId);
+          setMyIndex(idx >= 0 ? idx : 0);
+          setConnStatus('connected');
+          setStep('playing');
+        }
 
-    await enterPresence(channel, { role: 'player', name: name.trim() });
+        if (type === 'room:end') {
+          setStep('lobby');
+          setGame(null);
+        }
+      });
 
-    setTimeout(() => {
+      cleanupRef.current = () => {
+        unsub();
+        try { channel.peer?.destroy(); } catch (_) {}
+      };
+
+      // 3. Connect to host
+      console.log('[Join] Connecting to host:', roomCode);
+      await channel._connectToHost(roomCode);
+      console.log('[Join] Connected to host DataChannel');
+
+      // 4. Enter presence
+      await enterPresence(channel, { role: 'player', name: name.trim() });
+      console.log('[Join] Entered presence');
+
+      // 5. Explicitly request room info
       channel.publish('player:request-info', { playerId });
-    }, 1500);
+      
+      setConnStatus('connected');
 
-    return () => {
-      unsub();
-      try { channel.peer?.destroy(); } catch (_) {}
-    };
+    } catch (err) {
+      console.error('[Join] Connection failed:', err);
+      setConnStatus('error');
+    }
   }
 
   const GAME_META = {
@@ -240,6 +266,16 @@ export default function JoinPage() {
                 : ''}
             </div>
 
+            {connStatus === 'error' && (
+              <button 
+                onClick={() => setStep('enter-name')}
+                className="btn btn-ghost btn-sm"
+                style={{ marginBottom: 16 }}
+              >
+                Try again
+              </button>
+            )}
+
             <div style={{
               background: 'var(--surface)',
               borderRadius: 12,
@@ -267,7 +303,7 @@ export default function JoinPage() {
               color: 'var(--muted)',
               fontSize: 14
             }}>
-              Waiting for host to start the game...
+              {connStatus === 'connected' ? 'Waiting for host to start the game...' : 'Please wait...'}
             </div>
           </div>
         )}
